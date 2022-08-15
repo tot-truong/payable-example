@@ -1,13 +1,15 @@
-use cosmwasm_std::CosmosMsg;
+//use cosmwasm_std::CosmosMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 // Needed for payables 
 use cw20::Cw20ReceiveMsg;
-gi
+//use crate::state::{STATE, State};
+use crate::state::State;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub count: i32,
-    pub staking_token: String,
+    // pub staking_token: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -15,7 +17,9 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Increment {},
     Reset { count: i32 },
-    Receive(Cw20ReceiveMsg)
+    Receive(Cw20ReceiveMsg),
+    UpdateState { state: State },
+    Decrement {}
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

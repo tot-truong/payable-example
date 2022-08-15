@@ -21,8 +21,8 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let state = State {
         count: msg.count,
-        owner: info.sender.clone(),
-        cw20: deps.api.addr_validate(&msg.staking_token)?
+        owner: info.sender.to_string(),
+        cw20: info.sender.to_string(), //deps.api.addr_validate(&msg.)?
     };
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     STATE.save(deps.storage, &state)?;
@@ -43,7 +43,9 @@ pub fn execute(
     match msg {
         ExecuteMsg::Increment {} => try_increment(deps),
         ExecuteMsg::Reset { count } => try_reset(deps, info, count),
-        ExecuteMsg::Receive(cw20_msg) => receive_cw20(deps, _env, info, cw20_msg)
+        ExecuteMsg::Receive(cw20_msg) => receive_cw20(deps, _env, info, cw20_msg),
+        ExecuteMsg::UpdateState { state } => try_update(deps, state),
+        ExecuteMsg::Decrement {} => try_decrement(deps, info),
     }
 }
 
@@ -51,7 +53,7 @@ pub fn execute(
 /// a transaction. This is akin to a payable function in Solidity
 pub fn receive_cw20(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
@@ -63,8 +65,8 @@ pub fn receive_cw20(
 
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::StakeVotingTokens {}) => {
-            let api = deps.api;
-            // Homework??
+            let _api = deps.api;
+            
             Ok(Response::default())
         }
         _ => Err(ContractError::CustomError { val: "Non applicable payable".to_string() }),
@@ -74,6 +76,21 @@ pub fn receive_cw20(
 pub fn try_increment(deps: DepsMut) -> Result<Response, ContractError> {
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.count += 1;
+        Ok(state)
+    })?;
+
+    Ok(Response::new().add_attribute("method", "try_increment"))
+}
+
+/**
+ * Only owner can increment the count.
+ */
+pub fn try_decrement(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        if info.sender != state.owner {
+            return Err(ContractError::Unauthorized {});
+        }
+        state.count -= 1;
         Ok(state)
     })?;
 
@@ -91,6 +108,16 @@ pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Respons
     Ok(Response::new().add_attribute("method", "reset"))
 }
 
+pub fn try_update(deps: DepsMut, new_state: State) -> Result<Response, ContractError> {
+    let mut state = STATE.load(deps.storage)?;
+    // state.cw20 = deps.api.addr_validate(new_state.cw20).;
+    state.count = new_state.count;
+
+    //persist state
+    STATE.save(deps.storage, &state)?;
+    Ok(Response::new().add_attribute("action", "update yeah!"))
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -105,6 +132,8 @@ fn query_count(deps: Deps) -> StdResult<GetCountResponse> {
 
 #[cfg(test)]
 mod tests {
+    use crate::state;
+
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary};
@@ -172,4 +201,5 @@ mod tests {
         let value: GetCountResponse = from_binary(&res).unwrap();
         assert_eq!(5, value.count);
     }
+
 }
